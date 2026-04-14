@@ -1,17 +1,14 @@
 <script setup lang="ts">
 const { booking } = useBookingState()
 
-// Obliczamy czas zakończenia tylko na potrzeby wyświetlania w podsumowaniu
+// Obliczamy czas zakończenia używając naszego nowego, globalnego helpera!
 const formattedTimeRange = computed(() => {
   if (!booking.value.startTime || !booking.value.service) return booking.value.startTime
 
-  const [h, m] = booking.value.startTime.split(':').map(Number)
-  const totalMinutes = (h || 0) * 60 + (m || 0) + booking.value.service.duration_minutes
+  // Czysto, krótko i bez duplikowania logiki
+  const endTime = calculateEndTime(booking.value.startTime, booking.value.service.duration_minutes)
 
-  const endH = Math.floor(totalMinutes / 60).toString().padStart(2, '0')
-  const endM = (totalMinutes % 60).toString().padStart(2, '0')
-
-  return `${booking.value.startTime} — ${endH}:${endM}`
+  return `${booking.value.startTime} — ${endTime}`
 })
 </script>
 
@@ -27,7 +24,7 @@ const formattedTimeRange = computed(() => {
     </div>
 
     <div class="space-y-4">
-      <UFormGroup
+      <UFormField
         label="Imię i Nazwisko"
         required
       >
@@ -39,9 +36,9 @@ const formattedTimeRange = computed(() => {
           variant="outline"
           :ui="{ base: 'rounded-none' }"
         />
-      </UFormGroup>
+      </UFormField>
 
-      <UFormGroup
+      <UFormField
         label="Adres E-mail"
         required
       >
@@ -54,9 +51,9 @@ const formattedTimeRange = computed(() => {
           variant="outline"
           :ui="{ base: 'rounded-none' }"
         />
-      </UFormGroup>
+      </UFormField>
 
-      <UFormGroup
+      <UFormField
         label="Numer telefonu"
         required
       >
@@ -69,9 +66,9 @@ const formattedTimeRange = computed(() => {
           variant="outline"
           :ui="{ base: 'rounded-none' }"
         />
-      </UFormGroup>
+      </UFormField>
 
-      <UFormGroup label="Dodatkowe uwagi (opcjonalnie)">
+      <UFormField label="Dodatkowe uwagi (opcjonalnie)">
         <UTextarea
           v-model="booking.notes"
           placeholder="Np. alergie, specjalne życzenia..."
@@ -81,7 +78,7 @@ const formattedTimeRange = computed(() => {
           :rows="3"
           :ui="{ base: 'rounded-none' }"
         />
-      </UFormGroup>
+      </UFormField>
     </div>
 
     <div class="mt-8 p-4 bg-zinc-50 border border-zinc-100 flex items-center justify-between">

@@ -2,11 +2,10 @@
 </script>
 
 <template>
-  <div>
+  <UApp>
     <NuxtRouteAnnouncer />
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
-    <UNotifications />
-  </div>
+  </UApp>
 </template>

@@ -1,51 +1,83 @@
 <script setup lang="ts">
 import type { Database } from '~/types/database.types'
-
-definePageMeta({
-  middleware: 'auth', // Upewnij się, że masz takie middleware lub użyj wbudowanego
-})
+import { z } from 'zod' // Dodany Zod do walidacji frontowej
 
 const { booking, resetBooking } = useBookingState()
-const user = useSupabaseUser() // Pobieramy zalogowanego użytkownika
+const user = useSupabaseUser() 
+const toast = useToast()
 
 const currentStep = ref(1)
 const totalSteps = 4
 const isSubmitting = ref(false)
-const isSuccess = ref(false)
+const isSuccess = ref(false) 
 
 const nextStep = () => { currentStep.value++ }
 const prevStep = () => { currentStep.value-- }
 const progressWidth = computed(() => `${(currentStep.value / totalSteps) * 100}%`)
 
+// Wstępne blokowanie przycisku "Dalej" (wymaga choćby minimalnego wypełnienia)
 const isNextDisabled = computed(() => {
   if (currentStep.value === 1) return !booking.value.service
   if (currentStep.value === 2) return !booking.value.date || !booking.value.startTime
-  if (currentStep.value === 3) return !booking.value.customerName || !booking.value.customerEmail || !booking.value.customerPhone
+  if (currentStep.value === 3) return !booking.value.customerName || !booking.value.customerEmail
   return false
 })
 
-const getEndTime = (start: string, duration: number) => {
-  const [h, m] = start.split(':').map(Number)
-  const total = (h ?? 0) * 60 + (m ?? 0) + duration
-  return `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`
+// Schemat walidacji Zod dla kroku 3
+const step3Schema = z.object({
+  customerName: z.string().min(2, 'Imię i nazwisko musi mieć minimum 2 znaki.'),
+  customerEmail: z.string().email('Podaj poprawny adres e-mail.'),
+  customerPhone: z.string()
+    .min(7, 'Numer telefonu jest za krótki.')
+    .max(15, 'Numer telefonu jest za długi.')
+    .regex(/^[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[-\s\./0-9]*$/, 'Niepoprawny format numeru telefonu.')
+    .optional()
+    .or(z.literal('')) // Pozwala na całkowicie pusty telefon (jeśli klient go usunie)
+})
+
+// Przechwytujemy kliknięcie "Dalej" i odpalamy walidację
+const handleNextClick = () => {
+  // Jeśli użytkownik próbuje przejść z podania danych (krok 3) do podsumowania (krok 4)
+  if (currentStep.value === 3) {
+    const result = step3Schema.safeParse({
+      customerName: booking.value.customerName,
+      customerEmail: booking.value.customerEmail,
+      customerPhone: booking.value.customerPhone
+    })
+
+    if (!result.success) {
+      // Wyciągamy pierwszy napotkany błąd i wyświetlamy w ładnym Toaście
+      const errorMessage = result.error.issues[0]?.message || 'Sprawdź poprawność danych.'
+      toast.add({
+        title: 'Popraw dane',
+        description: errorMessage,
+        color: 'error',
+        icon: 'i-lucide-alert-circle'
+      })
+      return // BLOKADA: Przerywamy funkcję, user zostaje na kroku 3
+    }
+  }
+
+  // Jeśli nie ma błędów albo to inny krok, idziemy dalej
+  nextStep()
 }
 
 const handleComplete = async () => {
   if (isSubmitting.value) return
-
+  
   const s = booking.value.service
   const d = booking.value.date
   const st = booking.value.startTime
   if (!s || !d || !st) return
 
-  // DEBUG LOGI
-  console.log('DEBUG FRONTEND: user.value ->', user.value)
-  console.log('DEBUG FRONTEND: user_id wysyłany ->', user.value?.sub)
-
   isSubmitting.value = true
 
   try {
-    const dateString = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
+    const dateString = [
+      d.getFullYear(), 
+      String(d.getMonth() + 1).padStart(2, '0'), 
+      String(d.getDate()).padStart(2, '0')
+    ].join('-')
 
     await $fetch('/api/book', {
       method: 'POST',
@@ -53,25 +85,29 @@ const handleComplete = async () => {
         service_id: s.id,
         booking_date: dateString,
         start_time: st,
-        end_time: getEndTime(st, s.duration_minutes),
         customer_name: booking.value.customerName,
         customer_email: booking.value.customerEmail,
-        customer_phone: booking.value.customerPhone,
-        notes: booking.value.notes,
-        status: 'pending',
-        user_id: user.value?.sub, // ID użytkownika idzie tutaj
-      },
+        // Zabezpieczenie przed błędem backendu: jeśli pole jest puste, wysyłamy stricte null
+        customer_phone: booking.value.customerPhone || null,
+        notes: booking.value.notes || null,
+      }
     })
 
     isSuccess.value = true
     resetBooking()
-  }
-  catch (err: any) {
+  } catch (err: any) {
     console.error('Błąd:', err)
-    const msg = err.data?.statusMessage || 'Błąd zapisu.'
-    alert(`Błąd: ${msg}`)
-  }
-  finally {
+    console.log('Detale błędu Zod:', err.data?.data)
+    
+    const msg = err.data?.statusMessage || 'Wystąpił błąd połączenia z serwerem.'
+    
+    toast.add({
+      title: 'Ups, coś poszło nie tak!',
+      description: msg,
+      color: 'error',
+      icon: 'i-lucide-alert-triangle'
+    })
+  } finally {
     isSubmitting.value = false
   }
 }
@@ -147,7 +183,7 @@ const handleComplete = async () => {
           trailing-icon="i-lucide-arrow-right"
           class="uppercase font-bold text-[10px] tracking-widest px-8 rounded-none"
           :disabled="isNextDisabled"
-          @click="nextStep"
+          @click="handleNextClick"
         />
         <UButton
           v-else

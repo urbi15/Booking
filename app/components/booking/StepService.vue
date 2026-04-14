@@ -3,18 +3,11 @@ import type { Database } from '~/types/database.types'
 
 type Service = Database['public']['Tables']['bb_services']['Row']
 
-const client = useSupabaseClient<Database>()
 const { booking } = useBookingState()
 
-const { data: services, pending, error } = await useAsyncData('services', async () => {
-  const { data, error } = await client
-    .from('bb_services')
-    .select('*')
-    .order('name')
-
-  if (error) throw error
-  return data
-})
+// CAŁA MAGIA NUXTA: Zamiast grubego klienta Supabase, 
+// używamy prostego i wbudowanego useFetch, który uderza do backendu.
+const { data: services, pending } = await useFetch<Service[]>('/api/services')
 
 const handleSelect = (service: Service) => {
   booking.value.service = service
