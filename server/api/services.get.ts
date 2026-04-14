@@ -12,7 +12,6 @@ export default defineEventHandler(async (event) => {
     .order('name', { ascending: true }) // Od razu sortujemy alfabetycznie
 
   if (error) {
-    console.error('Błąd pobierania usług:', error)
     throw createError({ 
       statusCode: 500, 
       statusMessage: 'Nie udało się pobrać listy usług.' 

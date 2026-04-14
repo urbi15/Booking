@@ -27,9 +27,6 @@ export default defineEventHandler(async (event) => {
       end: b.end_time ? b.end_time.substring(0, 5) : b.start_time.substring(0, 5),
     })) || []
 
-    // Te logi zobaczysz w TERMINALU (tam gdzie masz npm run dev)
-    console.log(`[API] Znaleziono ${bookedRanges.length} rezerwacji dla daty ${date}`)
-
     return { bookedRanges }
   }
   catch (err: any) {

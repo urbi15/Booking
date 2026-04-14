@@ -6,7 +6,6 @@ interface BookingState {
   service: ServiceRow | null
   date: Date | null
   startTime: string | null
-  // Dodajemy brakujące pola:
   customerName: string
   customerEmail: string
   customerPhone: string

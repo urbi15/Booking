@@ -1,9 +1,3 @@
-/**
- * Oblicza godzinę zakończenia usługi na podstawie godziny startowej i czasu trwania.
- * @param startTime Godzina w formacie "HH:mm"
- * @param durationMinutes Czas trwania w minutach
- * @returns Godzina w formacie "HH:mm"
- */
 export const calculateEndTime = (startTime: string, durationMinutes: number): string => {
   if (!startTime) return ''
   

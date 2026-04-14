@@ -4,13 +4,16 @@ import 'v-calendar/dist/style.css'
 
 const { booking } = useBookingState()
 
-// Przechowujemy obiekty z czasem startu i końca pobrane z API
 const bookedRanges = ref<{ start: string, end: string }[]>([])
 const loadingSlots = ref(false)
 
 const WORKING_HOURS = { start: 9, end: 18 }
 
-// Generowanie slotów co 30 minut
+const now = new Date()
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+const maxDate = new Date(today)
+maxDate.setMonth(maxDate.getMonth() + 3)
+
 const availableSlots = computed(() => {
   const slots: string[] = []
   for (let hour = WORKING_HOURS.start; hour < WORKING_HOURS.end; hour++) {
@@ -20,43 +23,37 @@ const availableSlots = computed(() => {
   return slots
 })
 
-// 1. Sprawdzanie czy termin koliduje z rezerwacją w bazie
 const isTimeOccupied = (time: string) => {
   return bookedRanges.value.some((range) => {
     return time >= range.start && time < range.end
   })
 }
 
-// 2. Sprawdzanie czy godzina już minęła (tylko dla dzisiejszej daty)
 const isTimePast = (time: string) => {
   if (!booking.value.date) return false
 
-  const now = new Date()
   const selectedDate = new Date(booking.value.date)
+  const isToday = selectedDate.getFullYear() === now.getFullYear() &&
+                  selectedDate.getMonth() === now.getMonth() &&
+                  selectedDate.getDate() === now.getDate()
 
-  const isToday = selectedDate.toDateString() === now.toDateString()
   if (!isToday) return false
 
-  // Rozbijamy czas i parsujemy na liczby z domyślnymi wartościami
-  const parts = time.split(':').map(Number)
-  const slotHour = parts[0] ?? 0 // Jeśli undefined, przyjmij 0
-  const slotMinute = parts[1] ?? 0 // Jeśli undefined, przyjmij 0
-
+  const [slotHour = 0, slotMinute = 0] = time.split(':').map(Number)
   const currentHour = now.getHours()
   const currentMinute = now.getMinutes()
 
   return slotHour < currentHour || (slotHour === currentHour && slotMinute <= currentMinute)
 }
 
-// Pobieranie zajętych slotów przez nasz endpoint API
 const fetchBookedSlots = async (selectedDate: Date) => {
   loadingSlots.value = true
 
-  // Formatowanie daty do YYYY-MM-DD
-  const year = selectedDate.getFullYear()
-  const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
-  const day = String(selectedDate.getDate()).padStart(2, '0')
-  const dateString = `${year}-${month}-${day}`
+  const dateString = [
+    selectedDate.getFullYear(),
+    String(selectedDate.getMonth() + 1).padStart(2, '0'),
+    String(selectedDate.getDate()).padStart(2, '0')
+  ].join('-')
 
   try {
     const response = await $fetch<{ bookedRanges: { start: string, end: string }[] }>(`/api/booked-slots`, {
@@ -65,7 +62,6 @@ const fetchBookedSlots = async (selectedDate: Date) => {
     bookedRanges.value = response.bookedRanges || []
   }
   catch (err) {
-    console.error('Błąd pobierania slotów:', err)
     bookedRanges.value = []
   }
   finally {
@@ -73,10 +69,9 @@ const fetchBookedSlots = async (selectedDate: Date) => {
   }
 }
 
-// Reaguj na zmianę daty w kalendarzu
 watch(() => booking.value.date, async (newDate) => {
   if (newDate instanceof Date) {
-    booking.value.startTime = null // Reset godziny przy zmianie dnia
+    booking.value.startTime = null 
     await fetchBookedSlots(newDate)
   }
 }, { immediate: true })
@@ -99,7 +94,8 @@ const selectTime = (time: string) => {
       <ClientOnly>
         <DatePicker
           v-model="booking.date"
-          :min-date="new Date()"
+          :min-date="today"
+          :max-date="maxDate"
           mode="date"
           locale="pl"
           expanded

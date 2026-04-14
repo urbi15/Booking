@@ -1,11 +1,9 @@
 <script setup lang="ts">
 const { booking } = useBookingState()
 
-// Obliczamy czas zakończenia używając naszego nowego, globalnego helpera!
 const formattedTimeRange = computed(() => {
   if (!booking.value.startTime || !booking.value.service) return booking.value.startTime
 
-  // Czysto, krótko i bez duplikowania logiki
   const endTime = calculateEndTime(booking.value.startTime, booking.value.service.duration_minutes)
 
   return `${booking.value.startTime} — ${endTime}`

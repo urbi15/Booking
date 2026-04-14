@@ -1,85 +1,19 @@
 <script setup lang="ts">
 import type { Database } from '~/types/database.types'
 
-// 1. ZABEZPIECZENIE: Tylko zalogowani mogą tu wejść
-definePageMeta({
-  middleware: 'auth', // Nuxt Supabase automatycznie przekieruje do /login jeśli nie ma sesji
-})
-
-const client = useSupabaseClient<Database>()
-const user = useSupabaseUser()
-
-const bookings = ref<any[]>([])
-const pending = ref(false) // Startujemy z false
-
-const fetchBookings = async () => {
-  const userId = user.value?.sub
-  const userEmail = user.value?.email
-
-  if (!userId) return
-
-  pending.value = true
-
-  try {
-    // Budujemy zapytanie bazowe
-    const query = client
-      .from('bb_bookings')
-      .select(`
-        id,
-        booking_date,
-        start_time,
-        end_time,
-        status,
-        bb_services ( name, price )
-      `)
-      .order('booking_date', { ascending: true })
-
-    // Najpierw szukamy po user_id
-    let { data, error } = await query.eq('user_id', userId)
-
-    // Fallback: Jeśli po ID nic nie ma (stare rezerwacje), szukamy po mailu
-    if ((!data || data.length === 0) && userEmail) {
-      const { data: emailData, error: emailError } = await client
-        .from('bb_bookings')
-        .select(`id, booking_date, start_time, end_time, status, bb_services (name, price)`)
-        .eq('customer_email', userEmail)
-        .order('booking_date', { ascending: true })
-
-      data = emailData
-      error = emailError
-    }
-
-    if (error) throw error
-    bookings.value = data || []
-  }
-  catch (err) {
-    console.error('Błąd pobierania:', err)
-  }
-  finally {
-    // TO WYŁĄCZY SKELETON NAWET W RAZIE BŁĘDU
-    pending.value = false
-  }
+type BookingWithService = Database['public']['Tables']['bb_bookings']['Row'] & {
+  bb_services: Database['public']['Tables']['bb_services']['Row'] | null
 }
 
-// Odpal pobieranie po zamontowaniu i upewnieniu się, że mamy usera
-onMounted(() => {
-  if (user.value) {
-    fetchBookings()
-  }
-  else {
-    // Jeśli middleware jakimś cudem przepuści, wyrzuć stąd
-    navigateTo('/')
-  }
-})
+definePageMeta({ middleware: 'auth' })
 
-// Jeśli user zmieni się w trakcie (np. wylogowanie/logowanie), odśwież
-watch(() => user.value?.sub, (newId) => {
-  if (newId) fetchBookings()
-})
+const toast = useToast()
+
+const { data: bookings, pending, refresh } = await useFetch<BookingWithService[]>('/api/my-bookings')
 
 const getStatusColor = (status: string | null) => {
   const map: Record<string, any> = {
-    pending: 'warning',
+    pending: 'orange',
     confirmed: 'primary',
     cancelled: 'error',
     completed: 'neutral',
@@ -90,12 +24,18 @@ const getStatusColor = (status: string | null) => {
 const cancelBooking = async (id: string) => {
   if (!confirm('Czy na pewno chcesz odwołać tę wizytę?')) return
 
+  const client = useSupabaseClient()
   const { error } = await client
     .from('bb_bookings')
     .update({ status: 'cancelled' })
     .eq('id', id)
 
-  if (!error) await fetchBookings()
+  if (!error) {
+    toast.add({ title: 'Wizyta odwołana', color: 'success' })
+    await refresh()
+  } else {
+    toast.add({ title: 'Błąd', description: error.message, color: 'error' })
+  }
 }
 </script>
 
@@ -110,42 +50,19 @@ const cancelBooking = async (id: string) => {
       </p>
     </div>
 
-    <div
-      v-if="pending"
-      class="space-y-4"
-    >
-      <div
-        v-for="i in 3"
-        :key="i"
-        class="h-32 w-full bg-zinc-100 animate-pulse border border-zinc-200"
-      />
+    <div v-if="pending" class="space-y-4">
+      <div v-for="i in 3" :key="i" class="h-32 w-full bg-zinc-100 animate-pulse border border-zinc-200" />
     </div>
 
-    <div
-      v-else-if="!bookings.length"
-      class="text-center py-20 border-2 border-dashed border-zinc-200"
-    >
-      <UIcon
-        name="i-lucide-calendar-x"
-        class="w-12 h-12 text-zinc-300 mx-auto mb-4"
-      />
-      <p class="text-zinc-500 font-bold uppercase tracking-widest text-sm">
-        Nie masz jeszcze żadnych rezerwacji
-      </p>
-      <UButton
-        to="/"
-        variant="link"
-        color="primary"
-        class="mt-4 font-black uppercase text-xs tracking-widest"
-      >
+    <div v-else-if="!bookings?.length" class="text-center py-20 border-2 border-dashed border-zinc-200">
+      <UIcon name="i-lucide-calendar-x" class="w-12 h-12 text-zinc-300 mx-auto mb-4" />
+      <p class="text-zinc-500 font-bold uppercase tracking-widest text-sm">Nie masz jeszcze żadnych rezerwacji</p>
+      <UButton to="/" variant="link" color="primary" class="mt-4 font-black uppercase text-xs tracking-widest">
         Zarezerwuj pierwszy termin
       </UButton>
     </div>
 
-    <div
-      v-else
-      class="grid gap-6"
-    >
+    <div v-else class="grid gap-6">
       <div
         v-for="item in bookings"
         :key="item.id"
@@ -175,17 +92,11 @@ const cancelBooking = async (id: string) => {
             </div>
             <div class="flex flex-col gap-1 text-sm text-zinc-500 font-medium italic">
               <div class="flex items-center gap-1">
-                <UIcon
-                  name="i-lucide-clock"
-                  class="w-4 h-4"
-                />
+                <UIcon name="i-lucide-clock" class="w-4 h-4" />
                 {{ item.start_time.substring(0, 5) }} — {{ item.end_time?.substring(0, 5) }}
               </div>
               <div class="flex items-center gap-1 text-primary-600 font-black">
-                <UIcon
-                  name="i-lucide-banknote"
-                  class="w-4 h-4"
-                />
+                <UIcon name="i-lucide-banknote" class="w-4 h-4" />
                 {{ item.bb_services?.price }} zł
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { serverSupabaseClient, serverSupabaseServiceRole } from '#supabase/server'
 import type { Database } from '~/types/database.types'
 import { z } from 'zod'
-import { calculateEndTime } from '~/utils/time' // DODANY IMPORT HELPERA
+import { calculateEndTime } from '~/utils/time'
 
 // 1. Definicja schematu walidacji
 const bookingSchema = z.object({
@@ -40,14 +40,7 @@ export default defineEventHandler(async (event) => {
     notes,
   } = result.data
 
-  console.log('--- BACKEND API DEBUG (VALIDATED) ---')
-  console.log('Odebrane dane:', result.data)
-
-  // 3. Pobranie usera z sesji
   const { data: authData, error: authError } = await authClient.auth.getUser()
-  if (authError) {
-    console.warn('Nie udało się pobrać użytkownika z sesji:', authError.message)
-  }
   const currentUserId = authData?.user?.id || null
 
   // 4. Pobieranie czasu trwania usługi
@@ -59,30 +52,10 @@ export default defineEventHandler(async (event) => {
 
   if (!service) throw createError({ statusCode: 400, statusMessage: 'Usługa nie istnieje.' })
 
-  // 5. Obliczanie end_time (UŻYWAMY NASZEJ GLOBALNEJ FUNKCJI!)
+  // 5. Obliczanie end_time przy użyciu globalnego helpera
   const end_time = calculateEndTime(start_time, service.duration_minutes)
 
-  // 6. ZABEZPIECZENIE PRZED OVERBOOKINGIEM
-  const { data: existingBookings, error: collisionError } = await serviceClient
-    .from('bb_bookings')
-    .select('id, start_time, end_time')
-    .eq('booking_date', booking_date)
-    .not('status', 'eq', 'cancelled')
-    .lt('start_time', end_time)
-    .gt('end_time', start_time)
-
-  if (collisionError) {
-    throw createError({ statusCode: 500, statusMessage: 'Błąd sprawdzania kolizji.' })
-  }
-
-  if (existingBookings && existingBookings.length > 0) {
-    throw createError({ 
-      statusCode: 409, 
-      statusMessage: 'Wybrany termin jest już zajęty.' 
-    })
-  }
-
-  // 7. Zapis rezerwacji
+  // 6. Zapis rezerwacji (baza danych z Exclusion Constraint sama pilnuje kolizji)
   const { data, error } = await serviceClient
     .from('bb_bookings')
     .insert({
@@ -100,7 +73,17 @@ export default defineEventHandler(async (event) => {
     .select()
     .single()
 
+  // 7. Obsługa błędów bazy danych
   if (error) {
+    // 23P04 to kod Postgresa dla błędu "Exclusion Violation" (kolizja czasu)
+    if (error.code === '23P04') {
+      throw createError({ 
+        statusCode: 409, 
+        statusMessage: 'Niestety, ktoś ułamek sekundy temu zajął ten termin.' 
+      })
+    }
+    
+    // Inne, nieoczekiwane błędy bazy danych
     throw createError({ statusCode: 500, statusMessage: error.message })
   }
 

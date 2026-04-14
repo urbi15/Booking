@@ -5,8 +5,6 @@ type Service = Database['public']['Tables']['bb_services']['Row']
 
 const { booking } = useBookingState()
 
-// CAŁA MAGIA NUXTA: Zamiast grubego klienta Supabase, 
-// używamy prostego i wbudowanego useFetch, który uderza do backendu.
 const { data: services, pending } = await useFetch<Service[]>('/api/services')
 
 const handleSelect = (service: Service) => {

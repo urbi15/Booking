@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Database } from '~/types/database.types'
-import { z } from 'zod' // Dodany Zod do walidacji frontowej
+import { z } from 'zod'
 
 const { booking, resetBooking } = useBookingState()
 const user = useSupabaseUser() 
@@ -15,7 +15,6 @@ const nextStep = () => { currentStep.value++ }
 const prevStep = () => { currentStep.value-- }
 const progressWidth = computed(() => `${(currentStep.value / totalSteps) * 100}%`)
 
-// Wstępne blokowanie przycisku "Dalej" (wymaga choćby minimalnego wypełnienia)
 const isNextDisabled = computed(() => {
   if (currentStep.value === 1) return !booking.value.service
   if (currentStep.value === 2) return !booking.value.date || !booking.value.startTime
@@ -23,7 +22,6 @@ const isNextDisabled = computed(() => {
   return false
 })
 
-// Schemat walidacji Zod dla kroku 3
 const step3Schema = z.object({
   customerName: z.string().min(2, 'Imię i nazwisko musi mieć minimum 2 znaki.'),
   customerEmail: z.string().email('Podaj poprawny adres e-mail.'),
@@ -32,12 +30,10 @@ const step3Schema = z.object({
     .max(15, 'Numer telefonu jest za długi.')
     .regex(/^[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[-\s\./0-9]*$/, 'Niepoprawny format numeru telefonu.')
     .optional()
-    .or(z.literal('')) // Pozwala na całkowicie pusty telefon (jeśli klient go usunie)
+    .or(z.literal(''))
 })
 
-// Przechwytujemy kliknięcie "Dalej" i odpalamy walidację
 const handleNextClick = () => {
-  // Jeśli użytkownik próbuje przejść z podania danych (krok 3) do podsumowania (krok 4)
   if (currentStep.value === 3) {
     const result = step3Schema.safeParse({
       customerName: booking.value.customerName,
@@ -46,7 +42,6 @@ const handleNextClick = () => {
     })
 
     if (!result.success) {
-      // Wyciągamy pierwszy napotkany błąd i wyświetlamy w ładnym Toaście
       const errorMessage = result.error.issues[0]?.message || 'Sprawdź poprawność danych.'
       toast.add({
         title: 'Popraw dane',
@@ -54,11 +49,10 @@ const handleNextClick = () => {
         color: 'error',
         icon: 'i-lucide-alert-circle'
       })
-      return // BLOKADA: Przerywamy funkcję, user zostaje na kroku 3
+      return
     }
   }
 
-  // Jeśli nie ma błędów albo to inny krok, idziemy dalej
   nextStep()
 }
 
@@ -87,7 +81,6 @@ const handleComplete = async () => {
         start_time: st,
         customer_name: booking.value.customerName,
         customer_email: booking.value.customerEmail,
-        // Zabezpieczenie przed błędem backendu: jeśli pole jest puste, wysyłamy stricte null
         customer_phone: booking.value.customerPhone || null,
         notes: booking.value.notes || null,
       }
@@ -96,9 +89,6 @@ const handleComplete = async () => {
     isSuccess.value = true
     resetBooking()
   } catch (err: any) {
-    console.error('Błąd:', err)
-    console.log('Detale błędu Zod:', err.data?.data)
-    
     const msg = err.data?.statusMessage || 'Wystąpił błąd połączenia z serwerem.'
     
     toast.add({

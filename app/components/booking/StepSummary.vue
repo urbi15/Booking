@@ -1,7 +1,6 @@
 <script setup lang="ts">
 const { booking } = useBookingState()
 
-// Pomocnicze formatowanie daty
 const formattedDate = computed(() => {
   if (!booking.value.date) return ''
   return new Intl.DateTimeFormat('pl-PL', {
