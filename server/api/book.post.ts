@@ -1,7 +1,17 @@
 import { serverSupabaseClient, serverSupabaseServiceRole } from '#supabase/server'
 import type { Database } from '~/types/database.types'
+import { getRequestIP } from 'h3'
+import type { H3Event } from 'h3'
 import { z } from 'zod'
 import { calculateEndTime } from '~/utils/time'
+
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
+const RATE_LIMIT_MAX_REQUESTS = 8
+
+type RateLimitRecord = {
+  count: number
+  resetAt: number
+}
 
 const bookingSchema = z.object({
   service_id: z.string().uuid(),
@@ -13,7 +23,38 @@ const bookingSchema = z.object({
   notes: z.string().max(500).optional().nullable(),
 })
 
+const enforceBookingRateLimit = async (event: H3Event) => {
+  const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+  const key = `rate-limit:book:${ip}`
+  const storage = useStorage('cache')
+
+  const now = Date.now()
+  const current = await storage.getItem<RateLimitRecord>(key)
+
+  if (!current || current.resetAt <= now) {
+    await storage.setItem(key, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    })
+    return
+  }
+
+  if (current.count >= RATE_LIMIT_MAX_REQUESTS) {
+    throw createError({
+      statusCode: 429,
+      statusMessage: 'Zbyt wiele prób rezerwacji. Spróbuj ponownie za kilka minut.',
+    })
+  }
+
+  await storage.setItem(key, {
+    count: current.count + 1,
+    resetAt: current.resetAt,
+  })
+}
+
 export default defineEventHandler(async (event) => {
+  await enforceBookingRateLimit(event)
+
   const authClient = await serverSupabaseClient<Database>(event)
   const serviceClient = serverSupabaseServiceRole<Database>(event)
   
@@ -62,6 +103,30 @@ export default defineEventHandler(async (event) => {
 
   const end_time = calculateEndTime(start_time, service.duration_minutes)
 
+  const { data: conflictingBooking, error: conflictError } = await serviceClient
+    .from('bb_bookings')
+    .select('id')
+    .eq('booking_date', booking_date)
+    .neq('status', 'cancelled')
+    .lt('start_time', end_time)
+    .gt('end_time', start_time)
+    .limit(1)
+    .maybeSingle()
+
+  if (conflictError) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: conflictError.message,
+    })
+  }
+
+  if (conflictingBooking) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'Wybrany termin koliduje z inną rezerwacją.',
+    })
+  }
+
   const { data, error } = await serviceClient
     .from('bb_bookings')
     .insert({
@@ -80,7 +145,7 @@ export default defineEventHandler(async (event) => {
     .single()
 
   if (error) {
-    if (error.code === '23P04') {
+    if (error.code === '23P01' || error.code === '23P04' || error.code === '23505') {
       throw createError({ 
         statusCode: 409, 
         statusMessage: 'Niestety, ktoś ułamek sekundy temu zajął ten termin.' 

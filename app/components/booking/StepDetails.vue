@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { bookingDetailsSchema } from '~/utils/schemas'
+
 const { booking } = useBookingState()
 
 const formattedTimeRange = computed(() => {
@@ -8,6 +10,9 @@ const formattedTimeRange = computed(() => {
 
   return `${booking.value.startTime} — ${endTime}`
 })
+
+const form = useTemplateRef<{ validate: (opts?: object) => Promise<void> }>('form')
+defineExpose({ validate: () => form.value?.validate() })
 </script>
 
 <template>
@@ -22,60 +27,74 @@ const formattedTimeRange = computed(() => {
     </div>
 
     <div class="space-y-4">
-      <UFormField
-        label="Imię i Nazwisko"
-        required
+      <UForm
+        ref="form"
+        :schema="bookingDetailsSchema"
+        :state="booking"
+        :validate-on="['blur']"
+        class="space-y-4"
       >
-        <UInput
-          v-model="booking.customerName"
-          placeholder="np. Jan Kowalski"
-          size="lg"
-          color="neutral"
-          variant="outline"
-          :ui="{ base: 'rounded-none' }"
-        />
-      </UFormField>
+        <UFormField
+          label="Imię i Nazwisko"
+          name="customerName"
+          required
+        >
+          <UInput
+            v-model="booking.customerName"
+            placeholder="np. Jan Kowalski"
+            size="lg"
+            color="neutral"
+            variant="outline"
+            :ui="{ base: 'rounded-none' }"
+          />
+        </UFormField>
 
-      <UFormField
-        label="Adres E-mail"
-        required
-      >
-        <UInput
-          v-model="booking.customerEmail"
-          type="email"
-          placeholder="twoj@email.pl"
-          size="lg"
-          color="neutral"
-          variant="outline"
-          :ui="{ base: 'rounded-none' }"
-        />
-      </UFormField>
+        <UFormField
+          label="Adres E-mail"
+          name="customerEmail"
+          required
+        >
+          <UInput
+            v-model="booking.customerEmail"
+            type="email"
+            placeholder="twoj@email.pl"
+            size="lg"
+            color="neutral"
+            variant="outline"
+            :ui="{ base: 'rounded-none' }"
+          />
+        </UFormField>
 
-      <UFormField
-        label="Numer telefonu"
-      >
-        <UInput
-          v-model="booking.customerPhone"
-          type="tel"
-          placeholder="123 456 789"
-          size="lg"
-          color="neutral"
-          variant="outline"
-          :ui="{ base: 'rounded-none' }"
-        />
-      </UFormField>
+        <UFormField
+          label="Numer telefonu"
+          name="customerPhone"
+        >
+          <UInput
+            v-model="booking.customerPhone"
+            type="tel"
+            placeholder="123 456 789"
+            size="lg"
+            color="neutral"
+            variant="outline"
+            :ui="{ base: 'rounded-none' }"
+          />
+        </UFormField>
 
-      <UFormField label="Dodatkowe uwagi (opcjonalnie)">
-        <UTextarea
-          v-model="booking.notes"
-          placeholder="Np. alergie, specjalne życzenia..."
-          size="lg"
-          color="neutral"
-          variant="outline"
-          :rows="3"
-          :ui="{ base: 'rounded-none' }"
-        />
-      </UFormField>
+        <UFormField
+          label="Dodatkowe uwagi (opcjonalnie)"
+          name="notes"
+        >
+          <UTextarea
+            v-model="booking.notes"
+            placeholder="Np. alergie, specjalne życzenia..."
+            size="lg"
+            color="neutral"
+            variant="outline"
+            :rows="3"
+            :ui="{ base: 'rounded-none' }"
+          />
+        </UFormField>
+      </UForm>
     </div>
 
     <div class="mt-8 p-4 bg-zinc-50 border border-zinc-100 flex items-center justify-between">

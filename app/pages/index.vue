@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { z } from 'zod'
+import { bookingDetailsSchema } from '~/utils/schemas'
 
 const { booking, resetBooking } = useBookingState()
 const user = useSupabaseUser() 
@@ -8,7 +9,9 @@ const toast = useToast()
 const currentStep = ref(1)
 const totalSteps = 4
 const isSubmitting = ref(false)
-const isSuccess = ref(false) 
+const isSuccess = ref(false)
+
+const stepDetailsRef = useTemplateRef<{ validate: () => Promise<void> }>('stepDetails')
 
 const nextStep = () => { currentStep.value++ }
 const prevStep = () => { currentStep.value-- }
@@ -21,33 +24,14 @@ const isNextDisabled = computed(() => {
   return false
 })
 
-const step3Schema = z.object({
-  customerName: z.string().min(2, 'Imię i nazwisko musi mieć minimum 2 znaki.'),
-  customerEmail: z.string().email('Podaj poprawny adres e-mail.'),
-  customerPhone: z.string()
-    .min(7, 'Numer telefonu jest za krótki.')
-    .max(15, 'Numer telefonu jest za długi.')
-    .regex(/^[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[-\s\./0-9]*$/, 'Niepoprawny format numeru telefonu.')
-    .optional()
-    .or(z.literal(''))
-})
+const step3Schema = bookingDetailsSchema
 
-const handleNextClick = () => {
+const handleNextClick = async () => {
   if (currentStep.value === 3) {
-    const result = step3Schema.safeParse({
-      customerName: booking.value.customerName,
-      customerEmail: booking.value.customerEmail,
-      customerPhone: booking.value.customerPhone
-    })
-
-    if (!result.success) {
-      const errorMessage = result.error.issues[0]?.message || 'Sprawdź poprawność danych.'
-      toast.add({
-        title: 'Popraw dane',
-        description: errorMessage,
-        color: 'error',
-        icon: 'i-lucide-alert-circle'
-      })
+    try {
+      await stepDetailsRef.value?.validate()
+    }
+    catch {
       return
     }
   }
@@ -148,7 +132,10 @@ const handleComplete = async () => {
       <div class="grow">
         <BookingStepService v-if="currentStep === 1" />
         <BookingStepDate v-else-if="currentStep === 2" />
-        <BookingStepDetails v-else-if="currentStep === 3" />
+        <BookingStepDetails
+          v-else-if="currentStep === 3"
+          ref="stepDetails"
+        />
         <BookingStepSummary v-else-if="currentStep === 4" />
       </div>
 

@@ -3,9 +3,11 @@ import { DatePicker } from 'v-calendar'
 import 'v-calendar/dist/style.css'
 
 const { booking } = useBookingState()
+const toast = useToast()
 
 const bookedRanges = ref<{ start: string, end: string }[]>([])
 const loadingSlots = ref(false)
+const slotsLoadError = ref(false)
 
 const WORKING_HOURS = { start: 9, end: 18 }
 
@@ -29,9 +31,34 @@ const availableSlots = computed(() => {
   return slots
 })
 
+const toMinutes = (time: string) => {
+  const parts = time.split(':')
+  if (parts.length !== 2) return null
+  const h = Number(parts[0])
+  const m = Number(parts[1])
+  if (Number.isNaN(h) || Number.isNaN(m)) return null
+  return h * 60 + m
+}
+
 const isTimeOccupied = (time: string) => {
+  const newStart = toMinutes(time)
+  if (newStart === null) return true
+
+  const duration = booking.value.service?.duration_minutes ?? 0
+  if (duration <= 0) {
+    return bookedRanges.value.some((range) => {
+      return time >= range.start && time < range.end
+    })
+  }
+
+  const newEnd = newStart + duration
+  if (newEnd > WORKING_HOURS.end * 60) return true
+
   return bookedRanges.value.some((range) => {
-    return time >= range.start && time < range.end
+    const existingStart = toMinutes(range.start)
+    const existingEnd = toMinutes(range.end)
+    if (existingStart === null || existingEnd === null) return false
+    return newStart < existingEnd && newEnd > existingStart
   })
 }
 
@@ -55,6 +82,7 @@ const isTimePast = (time: string) => {
 
 const fetchBookedSlots = async (selectedDate: Date) => {
   loadingSlots.value = true
+  slotsLoadError.value = false
 
   const dateString = [
     selectedDate.getFullYear(),
@@ -70,6 +98,13 @@ const fetchBookedSlots = async (selectedDate: Date) => {
   }
   catch (err) {
     bookedRanges.value = []
+    slotsLoadError.value = true
+    toast.add({
+      title: 'Nie udało się pobrać terminów',
+      description: 'Odśwież stronę lub wybierz datę ponownie.',
+      color: 'error',
+      icon: 'i-lucide-alert-circle',
+    })
   }
   finally {
     loadingSlots.value = false
@@ -84,9 +119,17 @@ watch(() => booking.value.date, async (newDate) => {
 }, { immediate: true })
 
 const selectTime = (time: string) => {
+  if (slotsLoadError.value) return
   if (isTimeOccupied(time) || isTimePast(time)) return
   booking.value.startTime = time
 }
+
+const allSlotsUnavailable = computed(() =>
+  !loadingSlots.value &&
+  !slotsLoadError.value &&
+  availableSlots.value.length > 0 &&
+  availableSlots.value.every(time => isTimeOccupied(time) || isTimePast(time)),
+)
 </script>
 
 <template>
@@ -141,6 +184,31 @@ const selectTime = (time: string) => {
           :key="i"
           class="h-10 w-full bg-zinc-50 animate-pulse border border-zinc-100"
         />
+      </div>
+
+      <div
+        v-else-if="slotsLoadError"
+        class="max-w-xl mx-auto px-2 pb-6"
+      >
+        <div class="border border-error-200 bg-error-50 text-error-700 text-sm p-3">
+          Nie udało się pobrać zajętych terminów. Spróbuj ponownie wybrać datę.
+        </div>
+      </div>
+
+      <div
+        v-else-if="allSlotsUnavailable"
+        class="max-w-xl mx-auto px-2 pb-6 text-center"
+      >
+        <UIcon
+          name="i-lucide-calendar-x"
+          class="w-8 h-8 text-zinc-300 mx-auto mb-2"
+        />
+        <p class="text-sm font-bold text-zinc-400 uppercase tracking-widest">
+          Ten dzień jest w pełni zajęty
+        </p>
+        <p class="text-xs text-zinc-400 mt-1">
+          Wybierz inną datę.
+        </p>
       </div>
 
       <div
