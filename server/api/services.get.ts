@@ -2,14 +2,12 @@ import { serverSupabaseClient } from '#supabase/server'
 import type { Database } from '~/types/database.types'
 
 export default defineEventHandler(async (event) => {
-  // Pobieramy klienta Supabase po stronie serwera
   const client = await serverSupabaseClient<Database>(event)
 
-  // Wykonujemy zapytanie do bazy (ukryte przed okiem przeglądarki)
   const { data, error } = await client
     .from('bb_services')
     .select('id, name, duration_minutes, price')
-    .order('name', { ascending: true }) // Od razu sortujemy alfabetycznie
+    .order('name', { ascending: true })
 
   if (error) {
     throw createError({ 
@@ -18,6 +16,5 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Zwracamy czyste dane
-  return data
+  return { services: data }
 })

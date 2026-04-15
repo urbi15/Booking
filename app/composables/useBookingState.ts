@@ -12,31 +12,25 @@ interface BookingState {
   notes: string
 }
 
+const getInitialBookingState = (): BookingState => ({
+  service: null,
+  date: null,
+  startTime: null,
+  customerName: '',
+  customerEmail: '',
+  customerPhone: '',
+  notes: '',
+})
+
 export const useBookingState = () => {
-  const booking = useState<BookingState>('booking_data', () => ({
-    service: null,
-    date: null,
-    startTime: null,
-    customerName: '',
-    customerEmail: '',
-    customerPhone: '',
-    notes: '',
-  }))
+  const booking = useState<BookingState>(
+    'booking_data',
+    getInitialBookingState
+  )
 
   const resetBooking = () => {
-    booking.value = {
-      service: null,
-      date: null,
-      startTime: null,
-      customerName: '',
-      customerEmail: '',
-      customerPhone: '',
-      notes: '',
-    }
+    booking.value = getInitialBookingState()
   }
 
-  return {
-    booking,
-    resetBooking,
-  }
+  return { booking, resetBooking }
 }

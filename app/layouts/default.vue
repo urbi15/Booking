@@ -1,10 +1,11 @@
 <script setup lang="ts">
 const user = useSupabaseUser()
-const { auth } = useSupabaseClient()
+const client = useSupabaseClient()
+const currentYear = new Date().getFullYear()
 
 const handleLogout = async () => {
-  await auth.signOut()
-  navigateTo('/auth')
+  await client.auth.signOut()
+  await navigateTo('/auth')
 }
 </script>
 
@@ -79,7 +80,7 @@ const handleLogout = async () => {
     <footer class="bg-white border-t border-zinc-200 mt-auto">
       <div class="max-w-7xl mx-auto px-4 py-6">
         <p class="text-center text-sm text-zinc-500">
-          &copy; {{ new Date().getFullYear() }} BarberBook. Aplikacja rezerwacyjna.
+          &copy; {{ currentYear }} BarberBook. Aplikacja rezerwacyjna.
         </p>
       </div>
     </footer>

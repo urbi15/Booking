@@ -53,7 +53,6 @@ const formattedTimeRange = computed(() => {
 
       <UFormField
         label="Numer telefonu"
-        required
       >
         <UInput
           v-model="booking.customerPhone"

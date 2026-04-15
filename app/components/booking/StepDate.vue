@@ -9,10 +9,16 @@ const loadingSlots = ref(false)
 
 const WORKING_HOURS = { start: 9, end: 18 }
 
-const now = new Date()
-const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
-const maxDate = new Date(today)
-maxDate.setMonth(maxDate.getMonth() + 3)
+const today = computed(() => {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+})
+
+const maxDate = computed(() => {
+  const max = new Date(today.value)
+  max.setMonth(max.getMonth() + 3)
+  return max
+}) 
 
 const availableSlots = computed(() => {
   const slots: string[] = []
@@ -30,6 +36,7 @@ const isTimeOccupied = (time: string) => {
 }
 
 const isTimePast = (time: string) => {
+  const now = new Date()
   if (!booking.value.date) return false
 
   const selectedDate = new Date(booking.value.date)

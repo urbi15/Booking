@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { Database } from '~/types/database.types'
 import { z } from 'zod'
 
 const { booking, resetBooking } = useBookingState()

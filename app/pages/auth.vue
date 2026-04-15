@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { z } from 'zod'
+
 const client = useSupabaseClient()
 const user = useSupabaseUser()
 const toast = useToast()
@@ -11,6 +13,28 @@ const authData = reactive({
   password: '',
 })
 
+const loginSchema = z.object({
+  email: z.string().email('Podaj poprawny adres e-mail.'),
+  password: z.string().min(1, 'Hasło jest wymagane.'),
+})
+
+const registerSchema = z.object({
+  email: z.string().email('Podaj poprawny adres e-mail.'),
+  password: z
+    .string()
+    .min(8, 'Hasło musi mieć minimum 8 znaków.')
+    .max(72, 'Hasło jest zbyt długie (maks. 72 znaki).'),
+})
+
+const showValidationError = (message: string) => {
+  toast.add({
+    title: 'Popraw dane formularza',
+    description: message,
+    color: 'error',
+    icon: 'i-lucide-alert-circle',
+  })
+}
+
 const items = [
   { slot: 'login', label: 'Logowanie' },
   { slot: 'register', label: 'Rejestracja' },
@@ -22,55 +46,77 @@ watchEffect(() => {
 
 const handleLogin = async () => {
   if (loading.value) return
-  loading.value = true
-  
-  const { error } = await client.auth.signInWithPassword({
-    email: authData.email,
-    password: authData.password,
-  })
-  
-  if (error) {
-    toast.add({ 
-      title: 'Błąd logowania', 
-      description: error.message, 
-      color: 'error',
-      icon: 'i-lucide-alert-circle'
-    })
-  } else {
-    toast.add({ 
-      title: 'Zalogowano!', 
-      color: 'success',
-      icon: 'i-lucide-check-circle'
-    })
+  const result = loginSchema.safeParse(authData)
+  if (!result.success) {
+    showValidationError(result.error.issues[0]?.message || 'Sprawdź dane logowania.')
+    return
   }
-  loading.value = false
+
+  loading.value = true
+
+  try {
+    const { error } = await client.auth.signInWithPassword({
+      email: result.data.email,
+      password: result.data.password,
+    })
+
+    if (error) {
+      toast.add({
+        title: 'Błąd logowania',
+        description: error.message,
+        color: 'error',
+        icon: 'i-lucide-alert-circle',
+      })
+    }
+    else {
+      toast.add({
+        title: 'Zalogowano!',
+        color: 'success',
+        icon: 'i-lucide-check-circle',
+      })
+    }
+  }
+  finally {
+    loading.value = false
+  }
 }
 
 const handleSignUp = async () => {
   if (loading.value) return
-  loading.value = true
-  
-  const { error } = await client.auth.signUp({
-    email: authData.email,
-    password: authData.password,
-  })
-  
-  if (error) {
-    toast.add({ 
-      title: 'Błąd rejestracji', 
-      description: error.message, 
-      color: 'error',
-      icon: 'i-lucide-alert-circle'
-    })
-  } else {
-    toast.add({ 
-      title: 'Konto utworzone!', 
-      description: 'Możesz się teraz zalogować.', 
-      color: 'success',
-      icon: 'i-lucide-party-popper'
-    })
+  const result = registerSchema.safeParse(authData)
+  if (!result.success) {
+    showValidationError(result.error.issues[0]?.message || 'Sprawdź dane rejestracji.')
+    return
   }
-  loading.value = false
+
+  loading.value = true
+
+  try {
+    const { error } = await client.auth.signUp({
+      email: result.data.email,
+      password: result.data.password,
+    })
+
+    if (error) {
+      toast.add({
+        title: 'Błąd rejestracji',
+        description: error.message,
+        color: 'error',
+        icon: 'i-lucide-alert-circle',
+      })
+    }
+    else {
+      toast.add({
+        title: 'Konto utworzone!',
+        description: 'Możesz się teraz zalogować.',
+        color: 'success',
+        icon: 'i-lucide-party-popper',
+      })
+    }
+  }
+  finally {
+    loading.value = false
+  }
 }
 </script>
 

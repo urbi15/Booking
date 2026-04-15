@@ -24,17 +24,18 @@ const getStatusColor = (status: string | null) => {
 const cancelBooking = async (id: string) => {
   if (!confirm('Czy na pewno chcesz odwołać tę wizytę?')) return
 
-  const client = useSupabaseClient()
-  const { error } = await client
-    .from('bb_bookings')
-    .update({ status: 'cancelled' })
-    .eq('id', id)
+  try {
+    await $fetch('/api/cancel-booking', {
+      method: 'POST',
+      body: { id },
+    })
 
-  if (!error) {
     toast.add({ title: 'Wizyta odwołana', color: 'success' })
     await refresh()
-  } else {
-    toast.add({ title: 'Błąd', description: error.message, color: 'error' })
+  }
+  catch (err: any) {
+    const message = err?.data?.statusMessage || 'Nie udało się odwołać wizyty.'
+    toast.add({ title: 'Błąd', description: message, color: 'error' })
   }
 }
 </script>

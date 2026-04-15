@@ -1,11 +1,23 @@
-export const calculateEndTime = (startTime: string, durationMinutes: number): string => {
+export const calculateEndTime = (
+  startTime: string,
+  durationMinutes: number
+): string => {
   if (!startTime) return ''
-  
-  const [h, m] = startTime.split(':').map(Number)
-  const totalMinutes = (h ?? 0) * 60 + (m ?? 0) + durationMinutes
-  
-  const endHours = Math.floor(totalMinutes / 60)
-  const endMins = totalMinutes % 60
-  
-  return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`
+
+  const parts = startTime.split(':')
+  if (parts.length !== 2) return ''
+
+  const h = Number(parts[0])
+  const m = Number(parts[1])
+
+  if (Number.isNaN(h) || Number.isNaN(m)) {
+    return ''
+  }
+
+  const totalMinutes = h * 60 + m + durationMinutes
+
+  const hours = Math.floor(totalMinutes / 60) % 24
+  const minutes = totalMinutes % 60
+
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
 }

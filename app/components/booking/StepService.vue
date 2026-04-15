@@ -5,7 +5,8 @@ type Service = Database['public']['Tables']['bb_services']['Row']
 
 const { booking } = useBookingState()
 
-const { data: services, pending } = await useFetch<Service[]>('/api/services')
+const { data, pending, error } = await useFetch<{ services: Service[] }>('/api/services')
+const services = computed(() => data.value?.services ?? [])
 
 const handleSelect = (service: Service) => {
   booking.value.service = service
@@ -34,17 +35,22 @@ const handleSelect = (service: Service) => {
       />
     </div>
 
+    <div v-else-if="error">
+      Nie udało się pobrać usług.
+    </div>
+
     <div
       v-else
       class="grid gap-4 sm:grid-cols-2"
     >
-      <div
+      <button
         v-for="service in services"
         :key="service.id"
         class="relative cursor-pointer transition-colors duration-150 border border-zinc-200 overflow-hidden bg-white"
         :class="[
           booking.service?.id === service.id ? 'bg-zinc-50' : 'bg-white',
         ]"
+        type="button"
         @click="handleSelect(service)"
       >
         <div
@@ -81,7 +87,7 @@ const handleSelect = (service: Service) => {
             />
           </div>
         </div>
-      </div>
+      </button>
     </div>
 
     <p

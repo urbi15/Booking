@@ -1,9 +1,7 @@
-// server/api/booked-slots.get.ts
-import { serverSupabaseServiceRole } from '#supabase/server' // ZMIANA
+import { serverSupabaseServiceRole } from '#supabase/server'
 import type { Database } from '~/types/database.types'
 
 export default defineEventHandler(async (event) => {
-  // Używamy Service Role, aby ominąć blokady RLS przy sprawdzaniu zajętości
   const client = serverSupabaseServiceRole<Database>(event)
   const query = getQuery(event)
 
@@ -20,8 +18,7 @@ export default defineEventHandler(async (event) => {
       .not('status', 'eq', 'cancelled')
 
     if (error) throw error
-
-    // Mapowanie danych - upewniamy się, że format to HH:mm
+    
     const bookedRanges = data?.map(b => ({
       start: b.start_time.substring(0, 5),
       end: b.end_time ? b.end_time.substring(0, 5) : b.start_time.substring(0, 5),

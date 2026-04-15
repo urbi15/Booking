@@ -3,7 +3,6 @@ import type { Database } from '~/types/database.types'
 import { z } from 'zod'
 import { calculateEndTime } from '~/utils/time'
 
-// 1. Definicja schematu walidacji
 const bookingSchema = z.object({
   service_id: z.string().uuid(),
   booking_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -18,7 +17,6 @@ export default defineEventHandler(async (event) => {
   const authClient = await serverSupabaseClient<Database>(event)
   const serviceClient = serverSupabaseServiceRole<Database>(event)
   
-  // 2. Ścisła walidacja body za pomocą Zod
   const result = await readValidatedBody(event, (body) => bookingSchema.safeParse(body))
 
   if (!result.success) {
@@ -29,7 +27,6 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Wyciągamy sprawdzone dane
   const {
     service_id,
     booking_date,
@@ -43,19 +40,28 @@ export default defineEventHandler(async (event) => {
   const { data: authData, error: authError } = await authClient.auth.getUser()
   const currentUserId = authData?.user?.id || null
 
-  // 4. Pobieranie czasu trwania usługi
-  const { data: service } = await serviceClient
+  const { data: service, error: serviceError } = await serviceClient
     .from('bb_services')
     .select('duration_minutes')
     .eq('id', service_id)
     .single()
 
-  if (!service) throw createError({ statusCode: 400, statusMessage: 'Usługa nie istnieje.' })
+  if (serviceError) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: serviceError.message,
+    })
+  }
 
-  // 5. Obliczanie end_time przy użyciu globalnego helpera
+  if (!service) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'Usługa nie istnieje.',
+    })
+  }
+
   const end_time = calculateEndTime(start_time, service.duration_minutes)
 
-  // 6. Zapis rezerwacji (baza danych z Exclusion Constraint sama pilnuje kolizji)
   const { data, error } = await serviceClient
     .from('bb_bookings')
     .insert({
@@ -66,24 +72,21 @@ export default defineEventHandler(async (event) => {
       customer_name,
       customer_email,
       customer_phone: customer_phone || null,
-      notes: notes || '',
+      notes: notes ?? null,
       status: 'pending',
       user_id: currentUserId,
     })
     .select()
     .single()
 
-  // 7. Obsługa błędów bazy danych
   if (error) {
-    // 23P04 to kod Postgresa dla błędu "Exclusion Violation" (kolizja czasu)
     if (error.code === '23P04') {
       throw createError({ 
         statusCode: 409, 
         statusMessage: 'Niestety, ktoś ułamek sekundy temu zajął ten termin.' 
       })
     }
-    
-    // Inne, nieoczekiwane błędy bazy danych
+
     throw createError({ statusCode: 500, statusMessage: error.message })
   }
 
